@@ -23,6 +23,11 @@
 
 5. **Релизы**: помечаются тегами `v0.1.0`, `v0.1.1`, `v1.0.0` и отдельным коммитом `release: v0.1.0` с апдейтом `CHANGELOG.md`.
 
+6. **Проверки работоспособности** (см. `11_VERIFICATION.md`) встроены в план:
+   * husky pre-commit / pre-push + GitHub Actions CI настраиваются пачкой коммитов в Milestone 0 — до первой продуктовой работы;
+   * каждая веха завершается коммитом `docs(checklist): milestone-N …` с ручным smoke-листом;
+   * на Milestone 7 добавляются «тяжёлые» CI-джобы (Playwright e2e, bundle size, security audit).
+
 ---
 
 ## Milestone 0 — Setup (≈ 1 день)
@@ -37,11 +42,22 @@ chore: init pnpm workspace (pnpm-workspace.yaml, package.json)
 chore: add prettier config at root
 chore: add eslint base config and shared ruleset
 chore: add tsconfig.base.json
-chore: setup husky + lint-staged
-chore: add commitlint config (conventional commits)
-ci: add github actions — lint + typecheck job
-ci: add github actions — test job skeleton
-docs: copy design docs (00–08) into /docs
+chore: setup husky and lint-staged
+chore: add pre-commit hook — prettier + eslint on staged files
+chore: add pre-commit hook — typecheck changed workspaces
+chore: add pre-push hook — full typecheck and unit tests
+chore: add commit-msg hook with commitlint (conventional commits)
+ci: github actions — skeleton workflow (on push + pr, with pnpm setup)
+ci: github actions — lint job
+ci: github actions — typecheck job
+ci: github actions — test:api job with sqlite fixture
+ci: github actions — test:web job (vitest + jsdom)
+ci: github actions — build job (web + api production builds)
+ci: github actions — migrate:check job (fresh db + all migrations)
+ci: github actions — docker-build job (verifies Dockerfiles)
+ci: cache pnpm store between runs
+docs: add CI status badge to README
+docs: copy design docs (00–11) into /docs
 chore(web): scaffold vite + react + ts app in apps/web
 chore(web): add tailwind + postcss config
 chore(web): init shadcn/ui and add base components
@@ -58,9 +74,12 @@ chore(infra): add docker-compose.dev.yml (api + web)
 chore(infra): add Dockerfile for api (multi-stage)
 chore(infra): add Dockerfile for web (nginx-based)
 docs: add CONTRIBUTING.md with commit conventions
+docs(checklist): milestone-0 setup verification
 ```
 
-**≈ 28 коммитов**
+**≈ 40 коммитов**
+
+Контрольный чек-лист Milestone 0 (файл `docs/checklists/milestone-0.md`) проверяет: `pnpm install && pnpm dev` поднимает оба приложения; `git commit` с нарушающим сообщением отклонён husky; пустой push попадает в CI и все джобы зелёные; CI status badge в README отображается.
 
 ---
 
@@ -95,9 +114,13 @@ feat(web): logout action in header menu
 feat(web): redirect to login on 401
 feat(web): remember last route and redirect after login
 docs(api): document auth endpoints in openapi
+ci: github actions — coverage report comment on pr
+docs(checklist): milestone-1 auth manual checks
 ```
 
-**≈ 28 коммитов**
+**≈ 30 коммитов**
+
+Чек-лист (`docs/checklists/milestone-1.md`): регистрация → вход → F5 → всё ещё залогинен → logout → попытка открыть защищённый роут → редирект на /login → 6 неверных паролей подряд → rate-limit срабатывает → проверка флагов cookie в DevTools.
 
 ---
 
@@ -137,9 +160,12 @@ feat(web): metrics catalog page — list with search
 feat(web): metric detail — ranges, synonyms, units
 feat(web): create custom metric dialog
 feat(web): override reference range dialog
+docs(checklist): milestone-2 profile and catalog manual checks
 ```
 
-**≈ 33 коммита**
+**≈ 34 коммита**
+
+Чек-лист: онбординг при пустом профиле → редактирование профиля → сид каталога содержит ≥ 45 метрик → поиск «гемоглобин» находит по RU/EN/синониму → детали метрики показывают референс с половой стратификацией → создание кастомной метрики → override reference range сохраняется и не затирается при повторном сиде.
 
 ---
 
@@ -172,9 +198,12 @@ feat(web): edit measurement page (reuse form)
 feat(web): delete measurement with confirm modal
 feat(web): empty state for no measurements
 feat(web): optimistic update on create
+docs(checklist): milestone-3 measurements manual checks
 ```
 
-**≈ 26 коммитов**
+**≈ 27 коммитов**
+
+Чек-лист: создать → увидеть в списке → детали → редактировать → удалить; дата в будущем отклонена; отрицательное значение отклонено; форма удобна на мобильном; пустая единица — форма не отправляется; после create dashboard/список обновились.
 
 ---
 
@@ -197,9 +226,12 @@ feat(web): upload progress indicator
 feat(web): thumbnails gallery on measurement detail
 feat(web): lightbox for image preview
 feat(web): delete attachment action
+docs(checklist): milestone-4 attachments manual checks
 ```
 
-**≈ 16 коммитов**
+**≈ 17 коммитов**
+
+Чек-лист: прикрепить фото (мобильная камера + file picker) → миниатюра появилась → lightbox открывается по клику → оверсайз файл отклонён с понятным сообщением → PDF отображается как вложение → удаление файла удаляет и его физический файл → попытка открыть чужой attachment → 403.
 
 ---
 
@@ -228,9 +260,12 @@ feat(web): unified 80–120% reference band
 feat(web): legend with show/hide per series
 feat(web): metric picker for overlay (multi-select)
 test(web): AnalyteChart renders with stubbed data
+docs(checklist): milestone-5 chart manual checks
 ```
 
-**≈ 18 коммитов**
+**≈ 19 коммитов**
+
+Чек-лист: single-metric chart рисуется для метрики с ≥ 2 значениями; референсная полоса отображается; точки outside нормы выделены; клик по точке → переход на измерение; overlay для 3 метрик с нормализацией; легенда скрывает/показывает серии; тултип содержит значение, единицу, дату, статус.
 
 ---
 
@@ -247,9 +282,12 @@ feat(web): home/dashboard — latest value per pinned metric
 feat(web): dashboard — quick-action buttons (new measurement, ...)
 feat(web): dashboard — recent activity list
 feat(web): pin/unpin metrics on dashboard
+docs(checklist): milestone-6 export and dashboard manual checks
 ```
 
-**≈ 10 коммитов**
+**≈ 11 коммитов**
+
+Чек-лист: export JSON → import в пустой аккаунт → содержимое идентично оригиналу; CSV открывается в Excel/LibreOffice без поломанной кодировки; dashboard рендерится < 500 мс; pin/unpin метрики сохраняется между сессиями.
 
 ---
 
@@ -271,6 +309,9 @@ perf(web): route-level code splitting
 perf(web): image lazy-loading
 test(web): measurement create flow e2e
 test(web): chart rendering smoke test
+ci: github actions — playwright e2e smoke job
+ci: github actions — bundle size check vs main
+ci: github actions — security audit (pnpm audit + trivy on docker image)
 
 chore(infra): docker-compose.prod.yml with caddy
 chore(infra): Caddyfile with auto https
@@ -278,12 +319,15 @@ chore(ops): backup.sh — sqlite + attachments tarball
 chore(ops): restore.sh counterpart
 docs(ops): deployment guide additions
 docs: user manual (RU) in /docs/USER_GUIDE.md
+docs(checklist): milestone-7 pre-release manual checks
 release: bump versions to v0.1.0
 release: CHANGELOG.md for v0.1.0
 release: tag v0.1.0
 ```
 
-**≈ 23 коммита**
+**≈ 27 коммитов**
+
+Чек-лист перед релизом: PWA устанавливается на iPhone и открывается offline; dark mode переключается и палитра графика читается; все empty states корректны; error boundary ловит ошибку и показывает retry; прогон всего регрессионного листа (M1–M6); `backup.sh` создаёт архив, `restore.sh` разворачивает в чистом контейнере.
 
 ---
 
@@ -291,17 +335,17 @@ release: tag v0.1.0
 
 | Milestone | Коммитов |
 |---|---|
-| 0 Setup | 28 |
-| 1 Auth | 28 |
-| 2 Profile & Metrics | 33 |
-| 3 Measurements | 26 |
-| 4 Attachments | 16 |
-| 5 Chart & Analytics | 18 |
-| 6 Export & Dashboard | 10 |
-| 7 Polish & Release | 23 |
-| **Всего** | **≈ 182** |
+| 0 Setup | 40 |
+| 1 Auth | 30 |
+| 2 Profile & Metrics | 34 |
+| 3 Measurements | 27 |
+| 4 Attachments | 17 |
+| 5 Chart & Analytics | 19 |
+| 6 Export & Dashboard | 11 |
+| 7 Polish & Release | 27 |
+| **Всего** | **≈ 205** |
 
-При темпе 8–12 коммитов в рабочий день → **≈ 18–22 рабочих дня**, что совпадает с оценкой в `07_ROADMAP.md`.
+При темпе 8–12 коммитов в рабочий день → **≈ 20–25 рабочих дней**. Небольшое увеличение относительно `07_ROADMAP.md` (18–22 дня) — за счёт тщательной настройки CI и husky-хуков в Milestone 0 и чек-листов в конце каждой вехи. Эти инвестиции возвращаются экономией на отладке.
 
 ---
 
