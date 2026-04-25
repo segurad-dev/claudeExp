@@ -508,7 +508,7 @@ metricSelect.value = curMetric;
 
 metricSelect.addEventListener('change', () => {
   curMetric = metricSelect.value;
-  renderChartArea(); // будет реализована в следующих коммитах
+  renderChartArea();
 });
 
 // ══════════════════════════════════════════════════════
@@ -692,19 +692,31 @@ function renderChartArea() {
       const tip = document.getElementById('tip');
 
       // Позиция: центр кружка в координатах chart-wrap
-      // getBoundingClientRect даёт абсолютные px с учётом масштаба SVG
       const svgRect = svg.getBoundingClientRect();
       const dotRect = c.getBoundingClientRect();
-      tip.style.left = (dotRect.left + dotRect.width / 2 - svgRect.left) + 'px';
-      tip.style.top  = (dotRect.top  - svgRect.top) + 'px';
+      const tipX    = dotRect.left + dotRect.width / 2 - svgRect.left;
+      const tipY    = dotRect.top  - svgRect.top;
 
-      // Содержимое: метрика, значение+единица, дата, заметка
+      tip.style.left = tipX + 'px';
+      tip.style.top  = tipY + 'px';
+
+      // Если точка в верхней трети SVG — показываем tooltip НИЖЕ,
+      // иначе chart-card (overflow:hidden) обрежет его сверху
+      tip.style.transform = (cy < PT + PH / 3)
+        ? 'translate(-50%, 14px)'    // ниже точки
+        : 'translate(-50%, -120%)';  // выше точки (default)
+
+      // Заметка: обрезаем до 60 символов чтобы tooltip не расползался
+      const noteText = p.notes
+        ? esc(p.notes.length > 60 ? p.notes.slice(0, 60) + '…' : p.notes)
+        : '';
+
       const status = inRef ? '✓ норма' : '⚠ вне нормы';
       tip.innerHTML =
         `<b>${m.name}</b><br>` +
         `<span style="color:${color}">${v} ${p.unit} — ${status}</span><br>` +
         `<span style="opacity:.75">${fmtD(p.date)}</span>` +
-        (p.notes ? `<br><span style="opacity:.6">${esc(p.notes)}</span>` : '');
+        (noteText ? `<br><span style="opacity:.6">${noteText}</span>` : '');
 
       tip.classList.add('visible');
     });
@@ -981,6 +993,7 @@ document.getElementById('menuManual').addEventListener('click', () => {
 // ── Очистить всё ─────────────────────────────────────
 document.getElementById('btnClear').addEventListener('click', () => {
   const n = load().measurements.length;
+  if (n === 0) { toast('Нет данных для удаления', 'error'); return; }
   if (!confirm(`Удалить все ${n} измерений? Действие необратимо.`)) return;
   save({ version: 1, measurements: [] });
   renderChartArea();
@@ -1028,15 +1041,39 @@ document.getElementById('btnImport').addEventListener('click', () => {
       return;
     }
 
+    // Санитизация: пропускаем строки без metric/value/date,
+    // добавляем id если его нет (например, файл редактировали вручную)
+    const clean = imported.measurements
+      .filter(e => e && e.metric && e.date && e.value != null)
+      .map(e => ({
+        ...e,
+        id:    e.id    || crypto.randomUUID(),
+        unit:  e.unit  || METRICS[e.metric]?.def || '',
+        notes: e.notes || '',
+      }));
+
+    if (clean.length === 0) {
+      toast('Файл не содержит корректных измерений', 'error');
+      return;
+    }
+
     const cur = load().measurements.length;
     const msg = cur > 0
-      ? `Заменить ${cur} текущих измерений на ${imported.measurements.length} из файла?`
-      : `Загрузить ${imported.measurements.length} измерений из файла?`;
+      ? `Заменить ${cur} текущих измерений на ${clean.length} из файла?`
+      : `Загрузить ${clean.length} измерений из файла?`;
     if (!confirm(msg)) return;
 
-    save(imported);
+    save({ version: 1, measurements: clean });
+
+    // Переключаемся на первую метрику, для которой есть данные
+    const firstKey = MKEYS.find(k => clean.some(e => e.metric === k));
+    if (firstKey) {
+      curMetric          = firstKey;
+      metricSelect.value = firstKey;
+    }
+
     renderChartArea();
-    toast(`Импортировано ${imported.measurements.length} измерений`, 'success');
+    toast(`Импортировано ${clean.length} измерений`, 'success');
   });
 
   inp.click();
