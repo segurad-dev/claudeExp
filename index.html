@@ -599,6 +599,7 @@ function renderChartArea() {
         <div class="tooltip" id="tip"></div>
       </div>
       <div class="ref-legend" id="refLeg"></div>
+      <div class="date-controls" id="dateCtrls"></div>
     </div>`;
 
   // ── Date strip label ─────────────────────────────────
@@ -691,6 +692,99 @@ function renderChartArea() {
     `<div class="swatch-band"></div> норма ${m.ref.min}–${m.ref.max} ${m.def}
      &nbsp;<div class="swatch-dot" style="background:#3b82f6"></div> в норме
      &nbsp;<div class="swatch-dot" style="background:#ef4444"></div> вне нормы`;
+
+  // ── 6. Date chips ─────────────────────────────────────────
+  const dc = document.getElementById('dateCtrls');
+  dc.style.gridTemplateColumns = `repeat(${pts.length}, 1fr)`;
+  dc.innerHTML = pts.map(p => {
+    const v     = +p.value;
+    const inRef = v >= m.ref.min && v <= m.ref.max;
+    const d     = new Date(p.date + 'T00:00:00');
+    return `
+      <div class="date-chip" data-date="${p.date}"
+           title="${fmtD(p.date)}: ${v} ${p.unit}">
+        <div class="dc-day">${d.getDate()}</div>
+        <div class="dc-mon">${MON[d.getMonth()]}</div>
+        <div class="dc-val ${inRef ? 'ok' : 'bad'}">${v}</div>
+      </div>`;
+  }).join('');
+
+  // Клик по chip → модалка дня
+  dc.querySelectorAll('.date-chip').forEach(chip => {
+    chip.addEventListener('click', () => openDayModal(chip.dataset.date));
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  Модалка дня — все замеры за выбранную дату
+// ══════════════════════════════════════════════════════
+function openDayModal(date) {
+  const all  = load();
+  // Все замеры за этот день (любая метрика), отсортированные по имени
+  const rows = all.measurements
+    .filter(e => e.date === date)
+    .sort((a, b) =>
+      (METRICS[a.metric]?.name || '').localeCompare(METRICS[b.metric]?.name || '')
+    );
+
+  const box = document.getElementById('modalBox');
+
+  const rowsHtml = rows.length
+    ? rows.map(e => {
+        const m     = METRICS[e.metric];
+        const v     = +e.value;
+        const inRef = m && v >= m.ref.min && v <= m.ref.max;
+        return `
+          <div class="day-row">
+            <div class="dr-name">${m ? m.name : e.metric}</div>
+            <div class="dr-val ${inRef ? 'ok' : 'bad'}">${e.value}</div>
+            <div class="dr-unit">${e.unit}</div>
+            <div class="dr-note" title="${esc(e.notes)}">${esc(e.notes)}</div>
+            <button class="dr-del" data-id="${e.id}" title="Удалить">✕</button>
+          </div>`;
+      }).join('')
+    : `<p style="color:#94a3b8;font-size:13px">Нет данных за этот день.</p>`;
+
+  box.innerHTML = `
+    <h3>${fmtD(date)}</h3>
+    <div class="sub">${rows.length} показател${ending(rows.length)} за этот день</div>
+    ${rowsHtml}
+    <div class="modal-actions">
+      <button class="btn-secondary" id="dayClose">Закрыть</button>
+    </div>`;
+
+  openModal();
+
+  document.getElementById('dayClose').addEventListener('click', closeModal);
+
+  // Кнопки удаления
+  box.querySelectorAll('.dr-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!confirm('Удалить это измерение?')) return;
+      const data = load();
+      data.measurements = data.measurements.filter(e => e.id !== btn.dataset.id);
+      save(data);
+      closeModal();
+      renderChartArea();
+      toast('Измерение удалено', 'success');
+    });
+  });
+}
+
+// Склонение «показатель/показателя/показателей»
+function ending(n) {
+  if (n % 100 >= 11 && n % 100 <= 19) return 'ей';
+  if (n % 10 === 1) return 'ь';
+  if (n % 10 >= 2 && n % 10 <= 4) return 'я';
+  return 'ей';
+}
+
+// Экранирование HTML в пользовательских строках
+function esc(s) {
+  return String(s || '').replace(
+    /[&<>"']/g,
+    c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])
+  );
 }
 
 // ── Форматирование даты ISO → ДД.ММ.ГГГГ ────────────────
