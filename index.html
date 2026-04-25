@@ -433,9 +433,9 @@
 
   <!-- Toolbar -->
   <div class="toolbar">
-    <button>🗑 Очистить</button>
-    <button>📤 Экспорт</button>
-    <button>📥 Импорт</button>
+    <button id="btnClear">🗑 Очистить</button>
+    <button id="btnExport">📤 Экспорт</button>
+    <button id="btnImport">📥 Импорт</button>
   </div>
 
 </div>
@@ -972,6 +972,74 @@ document.addEventListener('click', e => {
 document.getElementById('menuManual').addEventListener('click', () => {
   menu.classList.remove('open');
   openManualModal();
+});
+
+// ══════════════════════════════════════════════════════
+//  Toolbar — Очистить / Экспорт / Импорт
+// ══════════════════════════════════════════════════════
+
+// ── Очистить всё ─────────────────────────────────────
+document.getElementById('btnClear').addEventListener('click', () => {
+  const n = load().measurements.length;
+  if (!confirm(`Удалить все ${n} измерений? Действие необратимо.`)) return;
+  save({ version: 1, measurements: [] });
+  renderChartArea();
+  toast('Все данные удалены', 'success');
+});
+
+// ── Экспорт JSON ──────────────────────────────────────
+document.getElementById('btnExport').addEventListener('click', () => {
+  const data = load();
+  const date = new Date().toISOString().slice(0, 10);
+  const blob = new Blob(
+    [JSON.stringify(data, null, 2)],
+    { type: 'application/json' }
+  );
+  const a = Object.assign(document.createElement('a'), {
+    href:     URL.createObjectURL(blob),
+    download: `healthtracker-${date}.json`,
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast(`Экспортировано ${data.measurements.length} измерений`, 'success');
+});
+
+// ── Импорт JSON ───────────────────────────────────────
+document.getElementById('btnImport').addEventListener('click', () => {
+  const inp = document.createElement('input');
+  inp.type   = 'file';
+  inp.accept = '.json,application/json';
+
+  inp.addEventListener('change', async () => {
+    const file = inp.files?.[0];
+    if (!file) return;
+
+    let imported;
+    try {
+      imported = JSON.parse(await file.text());
+    } catch {
+      toast('Ошибка: файл не является валидным JSON', 'error');
+      return;
+    }
+
+    // Минимальная проверка структуры
+    if (!Array.isArray(imported?.measurements)) {
+      toast('Ошибка: нет поля measurements[]', 'error');
+      return;
+    }
+
+    const cur = load().measurements.length;
+    const msg = cur > 0
+      ? `Заменить ${cur} текущих измерений на ${imported.measurements.length} из файла?`
+      : `Загрузить ${imported.measurements.length} измерений из файла?`;
+    if (!confirm(msg)) return;
+
+    save(imported);
+    renderChartArea();
+    toast(`Импортировано ${imported.measurements.length} измерений`, 'success');
+  });
+
+  inp.click();
 });
 
 // ══════════════════════════════════════════════════════
