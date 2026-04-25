@@ -414,7 +414,7 @@
   <!-- Note card -->
   <div class="note-card">
     <span>Заметка в свободной форме</span>
-    <textarea placeholder="Самочувствие, лекарства, диета, нагрузка, сон…"></textarea>
+    <textarea id="noteEl" placeholder="Самочувствие, лекарства, диета, нагрузка, сон…"></textarea>
   </div>
 
   <!-- Bottom bar -->
@@ -428,7 +428,7 @@
         <path d="M10 11h4v4a2 2 0 0 1-4 0v-4z" fill="#fb923c"/>
       </svg>
     </button>
-    <input class="input-field" type="text" placeholder="Заметка (Enter — сохранить)">
+    <input class="input-field" id="quickInput" type="text" placeholder="Заметка (Enter — сохранить)">
   </div>
 
   <!-- Toolbar -->
@@ -972,6 +972,38 @@ document.addEventListener('click', e => {
 document.getElementById('menuManual').addEventListener('click', () => {
   menu.classList.remove('open');
   openManualModal();
+});
+
+// ══════════════════════════════════════════════════════
+//  Заметки
+// ══════════════════════════════════════════════════════
+const NOTE_KEY = 'healthtracker.note';
+
+const noteEl     = document.getElementById('noteEl');
+const quickInput = document.getElementById('quickInput');
+
+// Загружаем сохранённую заметку при старте
+noteEl.value = localStorage.getItem(NOTE_KEY) || '';
+
+// Любое редактирование textarea — сразу в localStorage
+noteEl.addEventListener('input', () => {
+  localStorage.setItem(NOTE_KEY, noteEl.value);
+});
+
+// Enter в поле ввода → добавить строку с «•» в заметку
+quickInput.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const line = quickInput.value.trim();
+  if (!line) return;
+
+  // Добавляем к существующему тексту, сохраняем
+  noteEl.value = noteEl.value
+    ? noteEl.value + '\n• ' + line
+    : '• ' + line;
+  localStorage.setItem(NOTE_KEY, noteEl.value);
+
+  quickInput.value = '';
+  toast('Добавлено в заметку', 'success');
 });
 
 // ══════════════════════════════════════════════════════
