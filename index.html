@@ -553,13 +553,15 @@ function renderChartArea() {
   }
 
   // ── Вычисляем диапазон значений для оси Y ───────────
-  const vals   = pts.map(p => +p.value);
-  const vMin   = Math.min(...vals);
-  const vMax   = Math.max(...vals);
-  // Добавляем отступ 20%, чтобы точки не упирались в края
-  const vPad   = Math.max((vMax - vMin) * 0.2, 0.5);
-  const yLo    = vMin - vPad;   // нижняя граница оси
-  const yHi    = vMax + vPad;   // верхняя граница оси
+  const vals = pts.map(p => +p.value);
+  // Включаем границы нормы: полоса всегда видна, даже если
+  // все данные строго внутри или строго вне нормы
+  const allY = [...vals, m.ref.min, m.ref.max];
+  const vMin = Math.min(...allY);
+  const vMax = Math.max(...allY);
+  const vPad = Math.max((vMax - vMin) * 0.2, 0.5);
+  const yLo  = vMin - vPad;   // нижняя граница оси
+  const yHi  = vMax + vPad;   // верхняя граница оси
 
   // Значение → пиксель по Y (SVG: y растёт вниз)
   function toY(v) {
@@ -596,6 +598,7 @@ function renderChartArea() {
              preserveAspectRatio="none"></svg>
         <div class="tooltip" id="tip"></div>
       </div>
+      <div class="ref-legend" id="refLeg"></div>
     </div>`;
 
   // ── Date strip label ─────────────────────────────────
@@ -624,7 +627,35 @@ function renderChartArea() {
     return e;
   }
 
-  // Вертикальные линии-сетки по каждой точке
+  // ── 1. Зелёная полоса нормы (рисуем первой — она под всем) ──
+  const refTop = toY(m.ref.max);
+  const refBot = toY(m.ref.min);
+
+  svg.appendChild(el('rect', {
+    x: PL, y: refTop, width: PW, height: refBot - refTop,
+    fill: 'rgba(34,197,94,0.15)',
+  }));
+
+  // Пунктирные границы полосы
+  [m.ref.min, m.ref.max].forEach(v => {
+    svg.appendChild(el('line', {
+      x1: PL, x2: PL + PW, y1: toY(v), y2: toY(v),
+      stroke: 'rgba(34,197,94,0.65)', 'stroke-width': 1,
+      'stroke-dasharray': '5 3',
+    }));
+  });
+
+  // Метки ref.min и ref.max по оси Y
+  [m.ref.min, m.ref.max].forEach(v => {
+    const t = el('text', {
+      x: PL - 4, y: toY(v) + 3.5,
+      'font-size': 8, 'text-anchor': 'end', fill: '#64748b',
+    });
+    t.textContent = v;
+    svg.appendChild(t);
+  });
+
+  // ── 2. Вертикальная сетка ──────────────────────────────────
   colX.forEach(x => {
     svg.appendChild(el('line', {
       x1: x, x2: x, y1: PT, y2: PT + PH,
@@ -632,17 +663,7 @@ function renderChartArea() {
     }));
   });
 
-  // Метки минимума и максимума по оси Y
-  [[vMin, toY(vMin)], [vMax, toY(vMax)]].forEach(([v, py]) => {
-    const t = el('text', {
-      x: PL - 4, y: py + 3.5,
-      'font-size': 8, 'text-anchor': 'end', fill: '#94a3b8',
-    });
-    t.textContent = +v.toFixed(1);
-    svg.appendChild(t);
-  });
-
-  // Линия, соединяющая точки
+  // ── 3. Линия между точками ────────────────────────────────
   if (pts.length >= 2) {
     svg.appendChild(el('polyline', {
       points: pts.map((p, i) => `${colX[i]},${toY(+p.value)}`).join(' '),
@@ -651,16 +672,25 @@ function renderChartArea() {
     }));
   }
 
-  // Точки — пока все одного нейтрального цвета
-  // (синий/красный по норме — Commit 5)
+  // ── 4. Точки: синие (в норме) или красные (вне нормы) ────
   pts.forEach((p, i) => {
+    const v      = +p.value;
+    const inRef  = v >= m.ref.min && v <= m.ref.max;
+    const color  = inRef ? '#3b82f6' : '#ef4444';
+
     const c = el('circle', {
-      cx: colX[i], cy: toY(+p.value), r: 5,
-      fill: '#64748b', stroke: '#fff', 'stroke-width': 2,
+      cx: colX[i], cy: toY(v), r: 5,
+      fill: color, stroke: '#fff', 'stroke-width': 2,
       style: 'cursor: pointer',
     });
     svg.appendChild(c);
   });
+
+  // ── 5. Легенда под графиком ───────────────────────────────
+  document.getElementById('refLeg').innerHTML =
+    `<div class="swatch-band"></div> норма ${m.ref.min}–${m.ref.max} ${m.def}
+     &nbsp;<div class="swatch-dot" style="background:#3b82f6"></div> в норме
+     &nbsp;<div class="swatch-dot" style="background:#ef4444"></div> вне нормы`;
 }
 
 // ── Форматирование даты ISO → ДД.ММ.ГГГГ ────────────────
