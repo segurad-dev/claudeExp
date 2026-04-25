@@ -678,12 +678,41 @@ function renderChartArea() {
     const v      = +p.value;
     const inRef  = v >= m.ref.min && v <= m.ref.max;
     const color  = inRef ? '#3b82f6' : '#ef4444';
+    const cx     = colX[i];
+    const cy     = toY(v);
 
     const c = el('circle', {
-      cx: colX[i], cy: toY(v), r: 5,
+      cx, cy, r: 5,
       fill: color, stroke: '#fff', 'stroke-width': 2,
       style: 'cursor: pointer',
     });
+
+    // ── Tooltip: показать при наведении ──────────────────
+    c.addEventListener('mouseenter', () => {
+      const tip = document.getElementById('tip');
+
+      // Позиция: центр кружка в координатах chart-wrap
+      // getBoundingClientRect даёт абсолютные px с учётом масштаба SVG
+      const svgRect = svg.getBoundingClientRect();
+      const dotRect = c.getBoundingClientRect();
+      tip.style.left = (dotRect.left + dotRect.width / 2 - svgRect.left) + 'px';
+      tip.style.top  = (dotRect.top  - svgRect.top) + 'px';
+
+      // Содержимое: метрика, значение+единица, дата, заметка
+      const status = inRef ? '✓ норма' : '⚠ вне нормы';
+      tip.innerHTML =
+        `<b>${m.name}</b><br>` +
+        `<span style="color:${color}">${v} ${p.unit} — ${status}</span><br>` +
+        `<span style="opacity:.75">${fmtD(p.date)}</span>` +
+        (p.notes ? `<br><span style="opacity:.6">${esc(p.notes)}</span>` : '');
+
+      tip.classList.add('visible');
+    });
+
+    c.addEventListener('mouseleave', () => {
+      document.getElementById('tip').classList.remove('visible');
+    });
+
     svg.appendChild(c);
   });
 
