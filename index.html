@@ -419,10 +419,10 @@
 
   <!-- Bottom bar -->
   <div class="bottom-bar">
-    <div class="menu">
-      <button>⌨️ Ввести вручную</button>
+    <div class="menu" id="menu">
+      <button id="menuManual">⌨️ Ввести вручную</button>
     </div>
-    <button class="add-btn" title="Добавить замер">
+    <button class="add-btn" id="addBtn" title="Добавить замер">
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M9 2h6M10 2v13a2 2 0 0 0 4 0V2" stroke="#0a0a0a" stroke-width="1.8" stroke-linecap="round"/>
         <path d="M10 11h4v4a2 2 0 0 1-4 0v-4z" fill="#fb923c"/>
@@ -537,6 +537,156 @@ function renderChartArea() {
       Найдено замеров: ${pts.length}. График появится в следующем коммите.
     </div>`;
 }
+
+// ══════════════════════════════════════════════════════
+//  Toast
+// ══════════════════════════════════════════════════════
+const toastEl = document.getElementById('toast');
+let toastTimer;
+
+function toast(msg, cls = '') {
+  toastEl.textContent = msg;
+  toastEl.className   = 'toast visible ' + cls;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('visible'), 2800);
+}
+
+// ══════════════════════════════════════════════════════
+//  Modal helpers
+// ══════════════════════════════════════════════════════
+function openModal() {
+  document.getElementById('modalBackdrop').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalBackdrop').classList.remove('open');
+}
+
+// Закрыть по клику на backdrop (вне .modal)
+document.getElementById('modalBackdrop').addEventListener('click', e => {
+  if (e.target.id === 'modalBackdrop') closeModal();
+});
+
+// ══════════════════════════════════════════════════════
+//  Модалка ручного ввода
+// ══════════════════════════════════════════════════════
+function openManualModal() {
+  const today   = new Date().toISOString().slice(0, 10);
+  const box     = document.getElementById('modalBox');
+
+  // Строим HTML модалки — metric select заполняется из METRICS
+  const metricOpts = MKEYS
+    .map(k => `<option value="${k}">${METRICS[k].name}</option>`)
+    .join('');
+
+  box.innerHTML = `
+    <h3>Добавить замер</h3>
+    <div class="sub">Данные сохраняются локально в браузере</div>
+    <div class="field">
+      <label>Дата</label>
+      <input type="date" id="mDate" value="${today}">
+    </div>
+    <div class="field">
+      <label>Показатель</label>
+      <select id="mMetric">${metricOpts}</select>
+    </div>
+    <div class="field">
+      <label>Значение</label>
+      <input type="number" id="mValue" step="any" placeholder="0.0">
+    </div>
+    <div class="field">
+      <label>Единица</label>
+      <select id="mUnit"></select>
+    </div>
+    <div class="ref-hint" id="mHint"></div>
+    <div class="field">
+      <label>Заметка</label>
+      <input type="text" id="mNotes" placeholder="Натощак, после нагрузки…">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="mCancel">Отмена</button>
+      <button class="btn-primary"   id="mSave">Сохранить</button>
+    </div>`;
+
+  openModal();
+
+  // Выставляем текущую метрику как default
+  const mMetric = document.getElementById('mMetric');
+  const mUnit   = document.getElementById('mUnit');
+  const mHint   = document.getElementById('mHint');
+  mMetric.value = curMetric;
+
+  // Синхронизация единиц и подсказки при смене метрики
+  function syncUnits() {
+    const m = METRICS[mMetric.value];
+    mUnit.innerHTML = '';
+    m.units.forEach(u => mUnit.appendChild(new Option(u, u)));
+    mUnit.value    = m.def;
+    mHint.textContent = `Норма: ${m.ref.min}–${m.ref.max} ${m.def}`;
+  }
+
+  mMetric.addEventListener('change', syncUnits);
+  syncUnits(); // сразу при открытии
+
+  // Кнопка Отмена
+  document.getElementById('mCancel').addEventListener('click', closeModal);
+
+  // Кнопка Сохранить
+  document.getElementById('mSave').addEventListener('click', () => {
+    const date   = document.getElementById('mDate').value;
+    const metric = mMetric.value;
+    const raw    = document.getElementById('mValue').value.trim();
+    const unit   = mUnit.value;
+    const notes  = document.getElementById('mNotes').value.trim();
+
+    // Валидация
+    if (!date)           { toast('Выберите дату', 'error'); return; }
+    if (!raw || isNaN(+raw)) { toast('Введите числовое значение', 'error'); return; }
+
+    // Сохранение
+    const data = load();
+    data.measurements.push({
+      id:     crypto.randomUUID(),
+      date,
+      metric,
+      value:  +raw,
+      unit,
+      notes,
+    });
+    save(data);
+
+    // Переключаем глобальный селектор на только что добавленную метрику
+    curMetric          = metric;
+    metricSelect.value = metric;
+
+    closeModal();
+    renderChartArea();
+    toast(`${METRICS[metric].name}: ${raw} ${unit} сохранено`, 'success');
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  Кнопка-пробирка + меню
+// ══════════════════════════════════════════════════════
+const menu   = document.getElementById('menu');
+const addBtn = document.getElementById('addBtn');
+
+// Тоггл меню
+addBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  menu.classList.toggle('open');
+});
+
+// Закрыть меню при клике вне его
+document.addEventListener('click', e => {
+  if (!menu.contains(e.target)) menu.classList.remove('open');
+});
+
+// Пункт «Ввести вручную»
+document.getElementById('menuManual').addEventListener('click', () => {
+  menu.classList.remove('open');
+  openManualModal();
+});
 
 // ══════════════════════════════════════════════════════
 //  Старт
