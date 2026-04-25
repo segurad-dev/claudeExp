@@ -512,15 +512,37 @@ metricSelect.addEventListener('change', () => {
 });
 
 // ══════════════════════════════════════════════════════
-//  renderChartArea — пока показывает только empty-state
-//  (chart rendering — Commit 4)
+//  SVG chart — константы холста
+// ══════════════════════════════════════════════════════
+const CW = 340, CH = 220;           // viewBox размер
+const PL = 38,  PR = 10;            // отступы лево/право
+const PT = 16,  PB = 10;            // отступы верх/низ
+const PW = CW - PL - PR;            // ширина области графика
+const PH = CH - PT - PB;            // высота области графика
+
+// Сколько дней между двумя ISO-датами
+function daysBetween(d1, d2) {
+  return Math.round((new Date(d2) - new Date(d1)) / 86400000);
+}
+
+// Короткое название месяца
+const MON = ['янв','фев','мар','апр','май','июн',
+             'июл','авг','сен','окт','ноя','дек'];
+
+// ══════════════════════════════════════════════════════
+//  renderChartArea — строит chart-card или empty-state
 // ══════════════════════════════════════════════════════
 function renderChartArea() {
-  const m   = METRICS[curMetric];
-  const all = load();
-  const pts = all.measurements.filter(e => e.metric === curMetric);
+  const m    = METRICS[curMetric];
+  const all  = load();
   const area = document.getElementById('chartArea');
 
+  // Фильтруем + сортируем по дате
+  const pts = all.measurements
+    .filter(e => e.metric === curMetric)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // ── Empty state ──────────────────────────────────────
   if (pts.length === 0) {
     area.innerHTML = `
       <div class="empty-state">
@@ -530,12 +552,123 @@ function renderChartArea() {
     return;
   }
 
-  // Заглушка на случай если данные уже есть (до Commit 4)
+  // ── Вычисляем диапазон значений для оси Y ───────────
+  const vals   = pts.map(p => +p.value);
+  const vMin   = Math.min(...vals);
+  const vMax   = Math.max(...vals);
+  // Добавляем отступ 20%, чтобы точки не упирались в края
+  const vPad   = Math.max((vMax - vMin) * 0.2, 0.5);
+  const yLo    = vMin - vPad;   // нижняя граница оси
+  const yHi    = vMax + vPad;   // верхняя граница оси
+
+  // Значение → пиксель по Y (SVG: y растёт вниз)
+  function toY(v) {
+    const t = (v - yLo) / (yHi - yLo);                  // 0..1
+    return PT + PH * (1 - Math.max(0, Math.min(1, t)));  // px
+  }
+
+  // ── Вычисляем позиции X, пропорциональные датам ─────
+  const first   = pts[0].date;
+  const last    = pts[pts.length - 1].date;
+  const spanDay = Math.max(1, daysBetween(first, last));
+
+  function toX(date) {
+    if (pts.length === 1) return PL + PW / 2;            // единственная точка — по центру
+    return PL + (daysBetween(first, date) / spanDay) * PW;
+  }
+
+  const colX  = pts.map(p => toX(p.date));
+  // Интервал от предыдущего замера в днях (для заголовков)
+  const itvl  = pts.map((p, i) =>
+    i === 0 ? 'старт' : daysBetween(pts[i - 1].date, p.date) + ' дн.'
+  );
+
+  // ── Строим HTML chart-card ───────────────────────────
   area.innerHTML = `
-    <div class="empty-state">
-      <strong>${m.name}</strong>
-      Найдено замеров: ${pts.length}. График появится в следующем коммите.
+    <div class="chart-card">
+      <div class="date-strip">
+        <div class="label" id="stripLbl"></div>
+      </div>
+      <div class="col-headers" id="colHdr"></div>
+      <div class="chart-wrap">
+        <svg class="chart-svg" id="cSvg"
+             viewBox="0 0 ${CW} ${CH}"
+             preserveAspectRatio="none"></svg>
+        <div class="tooltip" id="tip"></div>
+      </div>
     </div>`;
+
+  // ── Date strip label ─────────────────────────────────
+  document.getElementById('stripLbl').textContent =
+    pts.length === 1
+      ? `${m.name}  ·  ${fmtD(first)}  ·  1 замер`
+      : `${m.name}  ·  ${fmtD(first)} — ${fmtD(last)}  ·  ${pts.length} замеров`;
+
+  // ── Column headers ───────────────────────────────────
+  const hdr = document.getElementById('colHdr');
+  hdr.style.gridTemplateColumns = `repeat(${pts.length}, 1fr)`;
+  hdr.innerHTML = pts.map((_, i) => `
+    <div class="cell">
+      <div class="interval">${itvl[i]}</div>
+      <div class="num">${i + 1}</div>
+    </div>`).join('');
+
+  // ── SVG ─────────────────────────────────────────────
+  const svg = document.getElementById('cSvg');
+  const NS  = 'http://www.w3.org/2000/svg';
+
+  // Вспомогательная функция создания SVG-элементов
+  function el(tag, attrs = {}) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  // Вертикальные линии-сетки по каждой точке
+  colX.forEach(x => {
+    svg.appendChild(el('line', {
+      x1: x, x2: x, y1: PT, y2: PT + PH,
+      stroke: '#e2e8f0', 'stroke-width': 1,
+    }));
+  });
+
+  // Метки минимума и максимума по оси Y
+  [[vMin, toY(vMin)], [vMax, toY(vMax)]].forEach(([v, py]) => {
+    const t = el('text', {
+      x: PL - 4, y: py + 3.5,
+      'font-size': 8, 'text-anchor': 'end', fill: '#94a3b8',
+    });
+    t.textContent = +v.toFixed(1);
+    svg.appendChild(t);
+  });
+
+  // Линия, соединяющая точки
+  if (pts.length >= 2) {
+    svg.appendChild(el('polyline', {
+      points: pts.map((p, i) => `${colX[i]},${toY(+p.value)}`).join(' '),
+      fill: 'none', stroke: '#94a3b8', 'stroke-width': 2,
+      'stroke-linejoin': 'round', 'stroke-linecap': 'round',
+    }));
+  }
+
+  // Точки — пока все одного нейтрального цвета
+  // (синий/красный по норме — Commit 5)
+  pts.forEach((p, i) => {
+    const c = el('circle', {
+      cx: colX[i], cy: toY(+p.value), r: 5,
+      fill: '#64748b', stroke: '#fff', 'stroke-width': 2,
+      style: 'cursor: pointer',
+    });
+    svg.appendChild(c);
+  });
+}
+
+// ── Форматирование даты ISO → ДД.ММ.ГГГГ ────────────────
+function fmtD(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  return `${String(d.getDate()).padStart(2,'0')}.`
+       + `${String(d.getMonth()+1).padStart(2,'0')}.`
+       + `${d.getFullYear()}`;
 }
 
 // ══════════════════════════════════════════════════════
