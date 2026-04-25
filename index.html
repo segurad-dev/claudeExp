@@ -402,65 +402,14 @@
 
 <div class="phone">
 
-  <!-- Metric selector -->
+  <!-- Metric selector: options populated by JS -->
   <div class="metric-selector">
     <span>Метрика:</span>
-    <select>
-      <option>Гемоглобин</option>
-      <option>Глюкоза</option>
-      <option>ТТГ</option>
-    </select>
+    <select id="metricSelect"></select>
   </div>
 
-  <!-- Chart area: static placeholder -->
-  <div class="chart-card">
-    <div class="date-strip">
-      <div class="label">Гемоглобин · 01.01.2025 — 20.04.2025 · 4 замера</div>
-    </div>
-    <div class="col-headers">
-      <div class="cell"><div class="interval">старт</div><div class="num">1</div></div>
-      <div class="cell"><div class="interval">30 дн.</div><div class="num">2</div></div>
-      <div class="cell"><div class="interval">45 дн.</div><div class="num">3</div></div>
-      <div class="cell"><div class="interval">20 дн.</div><div class="num">4</div></div>
-    </div>
-    <div class="chart-wrap">
-      <!-- Static placeholder SVG showing the visual language -->
-      <svg class="chart-svg" viewBox="0 0 340 220" preserveAspectRatio="none">
-        <!-- Reference band -->
-        <rect x="38" y="60" width="292" height="100" fill="rgba(34,197,94,.17)"/>
-        <line x1="38" x2="330" y1="60"  y2="60"  stroke="rgba(34,197,94,.65)" stroke-width="1" stroke-dasharray="5 3"/>
-        <line x1="38" x2="330" y1="160" y2="160" stroke="rgba(34,197,94,.65)" stroke-width="1" stroke-dasharray="5 3"/>
-        <!-- Y labels -->
-        <text x="34" y="63"  font-size="8" text-anchor="end" fill="#64748b">170</text>
-        <text x="34" y="163" font-size="8" text-anchor="end" fill="#64748b">130</text>
-        <!-- Vertical grid -->
-        <line x1="87"  x2="87"  y1="14" y2="206" stroke="#e2e8f0" stroke-width="1"/>
-        <line x1="184" x2="184" y1="14" y2="206" stroke="#e2e8f0" stroke-width="1"/>
-        <line x1="281" x2="281" y1="14" y2="206" stroke="#e2e8f0" stroke-width="1"/>
-        <!-- Connecting line -->
-        <polyline points="87,130 184,90 281,145 330,80"
-          fill="none" stroke="#94a3b8" stroke-width="2"
-          stroke-linejoin="round" stroke-linecap="round"/>
-        <!-- Points: blue = in range, red = out -->
-        <circle cx="87"  cy="130" r="5" fill="#3b82f6" stroke="#fff" stroke-width="2"/>
-        <circle cx="184" cy="90"  r="5" fill="#3b82f6" stroke="#fff" stroke-width="2"/>
-        <circle cx="281" cy="145" r="5" fill="#3b82f6" stroke="#fff" stroke-width="2"/>
-        <circle cx="330" cy="80"  r="5" fill="#ef4444" stroke="#fff" stroke-width="2"/>
-      </svg>
-      <div class="tooltip">Гемоглобин<br>145 g/L · 20.04.2025</div>
-    </div>
-    <div class="ref-legend">
-      <div class="swatch-band"></div> норма 130–170 g/L &nbsp;
-      <div class="swatch-dot" style="background:#3b82f6"></div> в норме &nbsp;
-      <div class="swatch-dot" style="background:#ef4444"></div> вне нормы
-    </div>
-    <div class="date-controls">
-      <div class="date-chip"><div class="dc-day">1</div><div class="dc-mon">янв</div><div class="dc-val ok">138</div></div>
-      <div class="date-chip"><div class="dc-day">31</div><div class="dc-mon">янв</div><div class="dc-val ok">152</div></div>
-      <div class="date-chip"><div class="dc-day">17</div><div class="dc-mon">мар</div><div class="dc-val ok">141</div></div>
-      <div class="date-chip"><div class="dc-day">20</div><div class="dc-mon">апр</div><div class="dc-val bad">174</div></div>
-    </div>
-  </div>
+  <!-- Chart area: filled by renderChartArea() -->
+  <div id="chartArea"></div>
 
   <!-- Note card -->
   <div class="note-card">
@@ -491,41 +440,109 @@
 
 </div>
 
-<!-- Toast (hidden by default) -->
-<div class="toast">Данные сохранены</div>
+<!-- Toast -->
+<div class="toast" id="toast"></div>
 
-<!-- Modal (hidden by default) -->
-<div class="modal-backdrop">
-  <div class="modal">
-    <h3>Добавить замер</h3>
-    <div class="sub">Данные сохраняются локально в браузере</div>
-    <div class="field">
-      <label>Дата</label>
-      <input type="date" value="2025-04-20">
-    </div>
-    <div class="field">
-      <label>Показатель</label>
-      <select><option>Гемоглобин</option></select>
-    </div>
-    <div class="field">
-      <label>Значение</label>
-      <input type="number" placeholder="0.0">
-    </div>
-    <div class="field">
-      <label>Единица</label>
-      <select><option>g/L</option></select>
-    </div>
-    <div class="ref-hint">Норма: 130–170 g/L</div>
-    <div class="field">
-      <label>Заметка</label>
-      <input type="text" placeholder="Натощак, после нагрузки…">
-    </div>
-    <div class="modal-actions">
-      <button class="btn-secondary">Отмена</button>
-      <button class="btn-primary">Сохранить</button>
-    </div>
-  </div>
+<!-- Modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" id="modalBox"></div>
 </div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  METRICS — справочник показателей
+//  ref: диапазон нормы для взрослого мужчины
+// ══════════════════════════════════════════════════════
+const METRICS = {
+  hemoglobin:    { name: 'Гемоглобин',          units: ['g/L', 'g/dL'],      def: 'g/L',    ref: { min: 130,  max: 170  } },
+  glucose:       { name: 'Глюкоза',             units: ['mmol/L', 'mg/dL'],  def: 'mmol/L', ref: { min: 3.9,  max: 5.9  } },
+  tsh:           { name: 'ТТГ',                 units: ['mIU/L'],            def: 'mIU/L',  ref: { min: 0.4,  max: 4.0  } },
+  cholesterol:   { name: 'Общий холестерин',    units: ['mmol/L', 'mg/dL'],  def: 'mmol/L', ref: { min: 3.9,  max: 5.2  } },
+  ldl:           { name: 'ЛПНП',                units: ['mmol/L', 'mg/dL'],  def: 'mmol/L', ref: { min: 1.8,  max: 3.0  } },
+  hdl:           { name: 'ЛПВП',                units: ['mmol/L', 'mg/dL'],  def: 'mmol/L', ref: { min: 1.0,  max: 1.7  } },
+  triglycerides: { name: 'Триглицериды',        units: ['mmol/L', 'mg/dL'],  def: 'mmol/L', ref: { min: 0.5,  max: 1.7  } },
+  creatinine:    { name: 'Креатинин',           units: ['μmol/L', 'mg/dL'],  def: 'μmol/L', ref: { min: 62,   max: 115  } },
+  alt:           { name: 'АЛТ',                 units: ['U/L'],              def: 'U/L',    ref: { min: 7,    max: 45   } },
+  ast:           { name: 'АСТ',                 units: ['U/L'],              def: 'U/L',    ref: { min: 10,   max: 40   } },
+  vitaminD:      { name: 'Витамин D (25-OH)',   units: ['nmol/L', 'ng/mL'],  def: 'nmol/L', ref: { min: 75,   max: 150  } },
+  ferritin:      { name: 'Ферритин',            units: ['ng/mL', 'μg/L'],    def: 'ng/mL',  ref: { min: 30,   max: 300  } },
+  esr:           { name: 'СОЭ',                 units: ['mm/h'],             def: 'mm/h',   ref: { min: 2,    max: 15   } },
+};
+
+const MKEYS = Object.keys(METRICS);
+
+// ══════════════════════════════════════════════════════
+//  Хранилище
+//  Формат: { version: 1, measurements: [...] }
+// ══════════════════════════════════════════════════════
+const SKEY = 'healthtracker.data';
+
+function load() {
+  try {
+    const raw = localStorage.getItem(SKEY);
+    return raw ? JSON.parse(raw) : { version: 1, measurements: [] };
+  } catch {
+    return { version: 1, measurements: [] };
+  }
+}
+
+function save(data) {
+  localStorage.setItem(SKEY, JSON.stringify(data));
+}
+
+// ══════════════════════════════════════════════════════
+//  Состояние
+// ══════════════════════════════════════════════════════
+let curMetric = MKEYS[0]; // выбранная метрика
+
+// ══════════════════════════════════════════════════════
+//  Metric selector — заполняем из METRICS
+// ══════════════════════════════════════════════════════
+const metricSelect = document.getElementById('metricSelect');
+
+MKEYS.forEach(key => {
+  metricSelect.appendChild(new Option(METRICS[key].name, key));
+});
+
+metricSelect.value = curMetric;
+
+metricSelect.addEventListener('change', () => {
+  curMetric = metricSelect.value;
+  renderChartArea(); // будет реализована в следующих коммитах
+});
+
+// ══════════════════════════════════════════════════════
+//  renderChartArea — пока показывает только empty-state
+//  (chart rendering — Commit 4)
+// ══════════════════════════════════════════════════════
+function renderChartArea() {
+  const m   = METRICS[curMetric];
+  const all = load();
+  const pts = all.measurements.filter(e => e.metric === curMetric);
+  const area = document.getElementById('chartArea');
+
+  if (pts.length === 0) {
+    area.innerHTML = `
+      <div class="empty-state">
+        <strong>Нет данных по «${m.name}»</strong>
+        Нажмите кнопку с пробиркой и введите первый замер.
+      </div>`;
+    return;
+  }
+
+  // Заглушка на случай если данные уже есть (до Commit 4)
+  area.innerHTML = `
+    <div class="empty-state">
+      <strong>${m.name}</strong>
+      Найдено замеров: ${pts.length}. График появится в следующем коммите.
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+//  Старт
+// ══════════════════════════════════════════════════════
+renderChartArea();
+</script>
 
 </body>
 </html>
