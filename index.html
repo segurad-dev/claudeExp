@@ -836,7 +836,7 @@ let toastTimer;
 
 function toast(msg, cls = '') {
   toastEl.textContent = msg;
-  toastEl.className   = 'toast visible ' + cls;
+  toastEl.className   = ['toast', 'visible', cls].filter(Boolean).join(' ');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toastEl.classList.remove('visible'), 2800);
 }
@@ -874,7 +874,7 @@ function openManualModal() {
     <div class="sub">Данные сохраняются локально в браузере</div>
     <div class="field">
       <label>Дата</label>
-      <input type="date" id="mDate" value="${today}">
+      <input type="date" id="mDate" value="${today}" max="${today}">
     </div>
     <div class="field">
       <label>Показатель</label>
@@ -1101,10 +1101,13 @@ quickInput.addEventListener('keydown', e => {
   const line = quickInput.value.trim();
   if (!line) return;
 
-  // Добавляем к существующему тексту, сохраняем
+  // Добавляем к существующему тексту, сохраняем немедленно
+  // (явное действие — дебаунс не нужен, но сбрасываем таймер чтобы
+  // не затереть результат отложенной записью из noteEl input)
   noteEl.value = noteEl.value
     ? noteEl.value + '\n• ' + line
     : '• ' + line;
+  clearTimeout(noteTimer);
   localStorage.setItem(NOTE_KEY, noteEl.value);
 
   quickInput.value = '';
