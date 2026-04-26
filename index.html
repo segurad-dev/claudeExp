@@ -761,10 +761,6 @@ function renderChartArea() {
       </div>`;
   }).join('');
 
-  // Клик по chip → модалка дня
-  dc.querySelectorAll('.date-chip').forEach(chip => {
-    chip.addEventListener('click', () => openDayModal(chip.dataset.date));
-  });
 }
 
 // ══════════════════════════════════════════════════════
@@ -806,21 +802,6 @@ function openDayModal(date) {
     </div>`;
 
   openModal();
-
-  document.getElementById('dayClose').addEventListener('click', closeModal);
-
-  // Кнопки удаления
-  box.querySelectorAll('.dr-del').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (!confirm('Удалить это измерение?')) return;
-      const data = load();
-      data.measurements = data.measurements.filter(e => e.id !== btn.dataset.id);
-      save(data);
-      closeModal();
-      renderChartArea();
-      toast('Измерение удалено', 'success');
-    });
-  });
 }
 
 // Склонение «показатель/показателя/показателей»
@@ -1128,6 +1109,32 @@ quickInput.addEventListener('keydown', e => {
 
   quickInput.value = '';
   toast('Добавлено в заметку', 'success');
+});
+
+// ══════════════════════════════════════════════════════
+//  Делегированные обработчики (устанавливаются один раз)
+// ══════════════════════════════════════════════════════
+
+// Клик по date-chip → модалка дня
+document.getElementById('chartArea').addEventListener('click', e => {
+  const chip = e.target.closest('.date-chip');
+  if (chip) openDayModal(chip.dataset.date);
+});
+
+// Кнопки внутри модалки дня: закрыть и удалить замер
+document.getElementById('modalBox').addEventListener('click', e => {
+  if (e.target.id === 'dayClose') { closeModal(); return; }
+
+  const del = e.target.closest('.dr-del');
+  if (del) {
+    if (!confirm('Удалить это измерение?')) return;
+    const data = load();
+    data.measurements = data.measurements.filter(m => m.id !== del.dataset.id);
+    save(data);
+    closeModal();
+    renderChartArea();
+    toast('Измерение удалено', 'success');
+  }
 });
 
 // ══════════════════════════════════════════════════════
