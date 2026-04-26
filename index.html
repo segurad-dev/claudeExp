@@ -517,10 +517,13 @@ MKEYS.forEach(key => {
 
 metricSelect.value = curMetric;
 
-metricSelect.addEventListener('change', () => {
-  curMetric = metricSelect.value;
+function setMetric(key) {
+  curMetric = key;
+  metricSelect.value = key;
   renderChartArea();
-});
+}
+
+metricSelect.addEventListener('change', () => setMetric(metricSelect.value));
 
 // ══════════════════════════════════════════════════════
 //  SVG chart — константы холста
@@ -948,12 +951,8 @@ function openManualModal() {
     });
     save(data);
 
-    // Переключаем глобальный селектор на только что добавленную метрику
-    curMetric          = metric;
-    metricSelect.value = metric;
-
     closeModal();
-    renderChartArea();
+    setMetric(metric);
     toast(`${METRICS[metric].name}: ${raw} ${unit} сохранено`, 'success');
   });
 }
@@ -998,9 +997,11 @@ document.getElementById('btnClear').addEventListener('click', () => {
 // ── Экспорт JSON ──────────────────────────────────────
 document.getElementById('btnExport').addEventListener('click', () => {
   const data = load();
-  const date = new Date().toISOString().slice(0, 10);
+  const now  = new Date();
+  const date = now.toISOString().slice(0, 10);
+  const exportData = { ...data, exportedAt: now.toISOString(), appVersion: 1 };
   const blob = new Blob(
-    [JSON.stringify(data, null, 2)],
+    [JSON.stringify(exportData, null, 2)],
     { type: 'application/json' }
   );
   const a = Object.assign(document.createElement('a'), {
@@ -1065,12 +1066,7 @@ document.getElementById('btnImport').addEventListener('click', () => {
 
     // Переключаемся на первую метрику, для которой есть данные
     const firstKey = MKEYS.find(k => clean.some(e => e.metric === k));
-    if (firstKey) {
-      curMetric          = firstKey;
-      metricSelect.value = firstKey;
-    }
-
-    renderChartArea();
+    if (firstKey) setMetric(firstKey); else renderChartArea();
     toast(`Импортировано ${clean.length} измерений`, 'success');
   });
 
