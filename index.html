@@ -1109,12 +1109,6 @@ document.getElementById('chartArea').addEventListener('mouseover', e => {
   const tipY    = dotRect.top  - svgRect.top;
   const cy      = +dot.dataset.cy;
 
-  tip.style.left      = tipX + 'px';
-  tip.style.top       = tipY + 'px';
-  tip.style.transform = (cy < PT + PH / 3)
-    ? 'translate(-50%, 14px)'
-    : 'translate(-50%, -120%)';
-
   const inRef  = dot.dataset.inref === '1';
   const color  = dotColor(inRef);
   const status = inRef ? '✓ норма' : '⚠ вне нормы';
@@ -1123,11 +1117,23 @@ document.getElementById('chartArea').addEventListener('mouseover', e => {
     ? esc(raw.length > NOTE_TRUNC ? raw.slice(0, NOTE_TRUNC) + '…' : raw)
     : '';
 
+  // Устанавливаем содержимое до позиционирования,
+  // чтобы offsetWidth вернул реальную ширину тултипа
   tip.innerHTML =
     `<b>${dot.dataset.mname}</b><br>` +
     `<span style="color:${color}">${dot.dataset.v} ${esc(dot.dataset.unit)} — ${status}</span><br>` +
     `<span style="opacity:.75">${fmtD(dot.dataset.date)}</span>` +
     (noteText ? `<br><span style="opacity:.6">${noteText}</span>` : '');
+
+  // Зажимаем X так, чтобы тултип не выходил за границы SVG
+  const halfW     = tip.offsetWidth / 2;
+  const clampedX  = Math.max(halfW, Math.min(tipX, svgRect.width - halfW));
+
+  tip.style.left      = clampedX + 'px';
+  tip.style.top       = tipY + 'px';
+  tip.style.transform = (cy < PT + PH / 3)
+    ? 'translate(-50%, 14px)'
+    : 'translate(-50%, -120%)';
 
   tip.classList.add('visible');
 });
