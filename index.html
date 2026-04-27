@@ -744,7 +744,7 @@ function renderChartArea() {
     const d     = new Date(p.date + 'T00:00:00');
     return `
       <div class="date-chip" data-date="${p.date}"
-           title="${fmtD(p.date)}: ${v} ${p.unit}">
+           title="${fmtD(p.date)}: ${v} ${esc(p.unit)}">
         <div class="dc-day">${d.getDate()}</div>
         <div class="dc-mon">${MON[d.getMonth()]}</div>
         <div class="dc-val ${inRef ? 'ok' : 'bad'}">${v}</div>
@@ -774,11 +774,11 @@ function openDayModal(date) {
         const inRef = m && isInRange(v, m);
         return `
           <div class="day-row">
-            <div class="dr-name">${m ? m.name : e.metric}</div>
+            <div class="dr-name">${m ? m.name : esc(e.metric)}</div>
             <div class="dr-val ${inRef ? 'ok' : 'bad'}">${e.value}</div>
-            <div class="dr-unit">${e.unit}</div>
+            <div class="dr-unit">${esc(e.unit)}</div>
             <div class="dr-note" title="${esc(e.notes)}">${esc(e.notes)}</div>
-            <button class="dr-del" data-id="${e.id}" title="Удалить">✕</button>
+            <button class="dr-del" data-id="${esc(e.id)}" title="Удалить">✕</button>
           </div>`;
       }).join('')
     : `<p style="color:#94a3b8;font-size:13px">Нет данных за этот день.</p>`;
@@ -875,7 +875,8 @@ function saveManualEntry() {
 }
 
 function openManualModal() {
-  const today   = new Date().toISOString().slice(0, 10);
+  const _now = new Date();
+  const today = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
   const box     = document.getElementById('modalBox');
 
   const metricOpts = MKEYS
@@ -1124,7 +1125,7 @@ document.getElementById('chartArea').addEventListener('mouseover', e => {
 
   tip.innerHTML =
     `<b>${dot.dataset.mname}</b><br>` +
-    `<span style="color:${color}">${dot.dataset.v} ${dot.dataset.unit} — ${status}</span><br>` +
+    `<span style="color:${color}">${dot.dataset.v} ${esc(dot.dataset.unit)} — ${status}</span><br>` +
     `<span style="opacity:.75">${fmtD(dot.dataset.date)}</span>` +
     (noteText ? `<br><span style="opacity:.6">${noteText}</span>` : '');
 
