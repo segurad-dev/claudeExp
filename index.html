@@ -475,7 +475,11 @@ const MKEYS = Object.keys(METRICS);
 //  Хранилище
 //  Формат: { version: 1, measurements: [...] }
 // ══════════════════════════════════════════════════════
-const SKEY = 'healthtracker.data';
+const SKEY           = 'healthtracker.data';
+const TOAST_DURATION = 2800;   // мс до автоскрытия toast
+const NOTE_DEBOUNCE  = 400;    // мс задержки автосохранения заметок
+const MAX_VALID_MULT = 20;     // порог нереалистичного значения (ref.max × N)
+const NOTE_TRUNC     = 60;     // макс символов заметки в tooltip
 
 function load() {
   try {
@@ -554,6 +558,9 @@ function daysBetween(d1, d2) {
 // Короткое название месяца
 const MON = ['янв','фев','мар','апр','май','июн',
              'июл','авг','сен','окт','ноя','дек'];
+
+const isInRange = (v, m) => v >= m.ref.min && v <= m.ref.max;
+const dotColor  = inRef  => inRef ? '#3b82f6' : '#ef4444';
 
 // ══════════════════════════════════════════════════════
 //  renderChartArea — строит chart-card или empty-state
@@ -702,8 +709,8 @@ function renderChartArea() {
   // ── 4. Точки: синие (в норме) или красные (вне нормы) ────
   pts.forEach((p, i) => {
     const v      = +p.value;
-    const inRef  = v >= m.ref.min && v <= m.ref.max;
-    const color  = inRef ? '#3b82f6' : '#ef4444';
+    const inRef  = isInRange(v, m);
+    const color  = dotColor(inRef);
     const cx     = colX[i];
     const cy     = toY(v);
 
@@ -711,46 +718,14 @@ function renderChartArea() {
       cx, cy, r: 5,
       fill: color, stroke: '#fff', 'stroke-width': 2,
       style: 'cursor: pointer',
+      'data-v':     p.value,
+      'data-date':  p.date,
+      'data-unit':  p.unit,
+      'data-notes': p.notes || '',
+      'data-inref': inRef ? '1' : '0',
+      'data-cy':    cy,
+      'data-mname': m.name,
     });
-
-    // ── Tooltip: показать при наведении ──────────────────
-    c.addEventListener('mouseenter', () => {
-      const tip = document.getElementById('tip');
-
-      // Позиция: центр кружка в координатах chart-wrap
-      const svgRect = svg.getBoundingClientRect();
-      const dotRect = c.getBoundingClientRect();
-      const tipX    = dotRect.left + dotRect.width / 2 - svgRect.left;
-      const tipY    = dotRect.top  - svgRect.top;
-
-      tip.style.left = tipX + 'px';
-      tip.style.top  = tipY + 'px';
-
-      // Если точка в верхней трети SVG — показываем tooltip НИЖЕ,
-      // иначе chart-card (overflow:hidden) обрежет его сверху
-      tip.style.transform = (cy < PT + PH / 3)
-        ? 'translate(-50%, 14px)'    // ниже точки
-        : 'translate(-50%, -120%)';  // выше точки (default)
-
-      // Заметка: обрезаем до 60 символов чтобы tooltip не расползался
-      const noteText = p.notes
-        ? esc(p.notes.length > 60 ? p.notes.slice(0, 60) + '…' : p.notes)
-        : '';
-
-      const status = inRef ? '✓ норма' : '⚠ вне нормы';
-      tip.innerHTML =
-        `<b>${m.name}</b><br>` +
-        `<span style="color:${color}">${v} ${p.unit} — ${status}</span><br>` +
-        `<span style="opacity:.75">${fmtD(p.date)}</span>` +
-        (noteText ? `<br><span style="opacity:.6">${noteText}</span>` : '');
-
-      tip.classList.add('visible');
-    });
-
-    c.addEventListener('mouseleave', () => {
-      document.getElementById('tip').classList.remove('visible');
-    });
-
     svg.appendChild(c);
   });
 
@@ -765,7 +740,7 @@ function renderChartArea() {
   dc.style.gridTemplateColumns = `repeat(${pts.length}, 1fr)`;
   dc.innerHTML = pts.map(p => {
     const v     = +p.value;
-    const inRef = v >= m.ref.min && v <= m.ref.max;
+    const inRef = isInRange(v, m);
     const d     = new Date(p.date + 'T00:00:00');
     return `
       <div class="date-chip" data-date="${p.date}"
@@ -796,7 +771,7 @@ function openDayModal(date) {
     ? rows.map(e => {
         const m     = METRICS[e.metric];
         const v     = +e.value;
-        const inRef = m && v >= m.ref.min && v <= m.ref.max;
+        const inRef = m && isInRange(v, m);
         return `
           <div class="day-row">
             <div class="dr-name">${m ? m.name : e.metric}</div>
@@ -853,7 +828,7 @@ function toast(msg, cls = '') {
   toastEl.textContent = msg;
   toastEl.className   = ['toast', 'visible', cls].filter(Boolean).join(' ');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove('visible'), 2800);
+  toastTimer = setTimeout(() => toastEl.classList.remove('visible'), TOAST_DURATION);
 }
 
 // ══════════════════════════════════════════════════════
@@ -888,7 +863,7 @@ function saveManualEntry() {
   if (!raw || isNaN(+raw)) { toast('Введите числовое значение', 'error'); return; }
   const val = +raw;
   const ref = METRICS[metric].ref;
-  if (val < 0 || val > ref.max * 20) { toast('Значение выглядит нереалистичным — проверьте ввод', 'error'); return; }
+  if (val < 0 || val > ref.max * MAX_VALID_MULT) { toast('Значение выглядит нереалистичным — проверьте ввод', 'error'); return; }
 
   const data = getData();
   data.measurements.push({ id: uuid(), date, metric, value: val, unit, notes });
@@ -1087,7 +1062,7 @@ noteEl.value = localStorage.getItem(NOTE_KEY) || '';
 let noteTimer;
 noteEl.addEventListener('input', () => {
   clearTimeout(noteTimer);
-  noteTimer = setTimeout(() => localStorage.setItem(NOTE_KEY, noteEl.value), 400);
+  noteTimer = setTimeout(() => localStorage.setItem(NOTE_KEY, noteEl.value), NOTE_DEBOUNCE);
 });
 
 // Enter в поле ввода → добавить строку с «•» в заметку
@@ -1117,6 +1092,50 @@ quickInput.addEventListener('keydown', e => {
 document.getElementById('chartArea').addEventListener('click', e => {
   const chip = e.target.closest('.date-chip');
   if (chip) openDayModal(chip.dataset.date);
+});
+
+// Тултип при наведении на точку графика (делегирован на #chartArea)
+document.getElementById('chartArea').addEventListener('mouseover', e => {
+  const dot = e.target.closest('circle[data-v]');
+  if (!dot) return;
+  const svg = dot.closest('svg');
+  const tip = document.getElementById('tip');
+  if (!svg || !tip) return;
+
+  const svgRect = svg.getBoundingClientRect();
+  const dotRect = dot.getBoundingClientRect();
+  const tipX    = dotRect.left + dotRect.width / 2 - svgRect.left;
+  const tipY    = dotRect.top  - svgRect.top;
+  const cy      = +dot.dataset.cy;
+
+  tip.style.left      = tipX + 'px';
+  tip.style.top       = tipY + 'px';
+  tip.style.transform = (cy < PT + PH / 3)
+    ? 'translate(-50%, 14px)'
+    : 'translate(-50%, -120%)';
+
+  const inRef  = dot.dataset.inref === '1';
+  const color  = dotColor(inRef);
+  const status = inRef ? '✓ норма' : '⚠ вне нормы';
+  const raw    = dot.dataset.notes;
+  const noteText = raw
+    ? esc(raw.length > NOTE_TRUNC ? raw.slice(0, NOTE_TRUNC) + '…' : raw)
+    : '';
+
+  tip.innerHTML =
+    `<b>${dot.dataset.mname}</b><br>` +
+    `<span style="color:${color}">${dot.dataset.v} ${dot.dataset.unit} — ${status}</span><br>` +
+    `<span style="opacity:.75">${fmtD(dot.dataset.date)}</span>` +
+    (noteText ? `<br><span style="opacity:.6">${noteText}</span>` : '');
+
+  tip.classList.add('visible');
+});
+
+document.getElementById('chartArea').addEventListener('mouseout', e => {
+  const dot = e.target.closest('circle[data-v]');
+  if (dot && dot !== e.relatedTarget?.closest('circle[data-v]')) {
+    document.getElementById('tip').classList.remove('visible');
+  }
 });
 
 // Все клики внутри #modalBox: ручной ввод + модалка дня
