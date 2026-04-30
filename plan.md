@@ -336,3 +336,34 @@ PUT  /api/notes                 → сохранить заметку
 Фронтенд меняется минимально — только слой хранилища.
 
 **Шаг 3 (продукт):** добавить активного бота с уведомлениями (v3).
+
+---
+
+Структура:
+
+
+bot/
+  bot.py            — бот
+  requirements.txt
+  .env.example
+  miniapp/
+    index.html      — мини-приложение
+Запуск:
+
+
+pip install -r bot/requirements.txt
+
+# Windows
+set BOT_TOKEN=123456:ABC...
+set MINIAPP_URL=https://your-domain.com/miniapp
+python bot/bot.py
+Важный момент — MINIAPP_URL должен быть HTTPS. Telegram не открывает WebApp по HTTP. Для локальной разработки удобнее всего ngrok:
+
+
+# в одном терминале — раздаём miniapp/
+npx serve bot/miniapp -p 8080
+
+# в другом — туннель
+ngrok http 8080
+# ngrok выдаст https://xxxx.ngrok-free.app — вставь его в MINIAPP_URL
+Также нужно зарегистрировать домен мини-приложения у @BotFather: /mybots → Bot Settings → Menu Button → Edit Menu Button URL или просто через WebApp кнопку — домен не требует регистрации, если используется InlineKeyboardButton с web_app.
