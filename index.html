@@ -82,16 +82,6 @@
     pointer-events: none;
   }
 
-  .col-headers {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    padding: 6px 4px 4px;
-    background: #fafafa;
-    border-bottom: 1px solid #e5e7eb;
-  }
-  .col-headers .cell { text-align: center; }
-  .col-headers .interval { color: #475569; font-weight: 600; font-size: 9px; }
-  .col-headers .num { color: #0a0a0a; font-weight: 700; font-size: 14px; margin-top: 1px; }
 
   .chart-wrap { position: relative; }
   .chart-svg { display: block; width: 100%; height: 220px; }
@@ -454,19 +444,8 @@
 //  ref: диапазон нормы для взрослого мужчины
 // ══════════════════════════════════════════════════════
 const METRICS = {
-  hemoglobin:    { name: 'Гемоглобин',          units: ['g/L', 'g/dL'],      def: 'g/L',    ref: { min: 130,  max: 170  } },
-  glucose:       { name: 'Глюкоза',             units: ['mmol/L', 'mg/dL'],  def: 'mmol/L', ref: { min: 3.9,  max: 5.9  } },
-  tsh:           { name: 'ТТГ',                 units: ['mIU/L'],            def: 'mIU/L',  ref: { min: 0.4,  max: 4.0  } },
-  cholesterol:   { name: 'Общий холестерин',    units: ['mmol/L', 'mg/dL'],  def: 'mmol/L', ref: { min: 3.9,  max: 5.2  } },
-  ldl:           { name: 'ЛПНП',                units: ['mmol/L', 'mg/dL'],  def: 'mmol/L', ref: { min: 1.8,  max: 3.0  } },
-  hdl:           { name: 'ЛПВП',                units: ['mmol/L', 'mg/dL'],  def: 'mmol/L', ref: { min: 1.0,  max: 1.7  } },
-  triglycerides: { name: 'Триглицериды',        units: ['mmol/L', 'mg/dL'],  def: 'mmol/L', ref: { min: 0.5,  max: 1.7  } },
-  creatinine:    { name: 'Креатинин',           units: ['μmol/L', 'mg/dL'],  def: 'μmol/L', ref: { min: 62,   max: 115  } },
-  alt:           { name: 'АЛТ',                 units: ['U/L'],              def: 'U/L',    ref: { min: 7,    max: 45   } },
-  ast:           { name: 'АСТ',                 units: ['U/L'],              def: 'U/L',    ref: { min: 10,   max: 40   } },
-  vitaminD:      { name: 'Витамин D (25-OH)',   units: ['nmol/L', 'ng/mL'],  def: 'nmol/L', ref: { min: 75,   max: 150  } },
-  ferritin:      { name: 'Ферритин',            units: ['ng/mL', 'μg/L'],    def: 'ng/mL',  ref: { min: 30,   max: 300  } },
-  esr:           { name: 'СОЭ',                 units: ['mm/h'],             def: 'mm/h',   ref: { min: 2,    max: 15   } },
+  copper:          { name: 'Медь',              units: ['μmol/L', 'μg/dL'],  def: 'μmol/L', ref: { min: 11.0, max: 22.0 } },
+  ceruloplasmin:   { name: 'Церулоплазмин',    units: ['mg/dL', 'g/L'],     def: 'mg/dL',  ref: { min: 20,   max: 60   } },
 };
 
 const MKEYS = Object.keys(METRICS);
@@ -613,10 +592,6 @@ function renderChartArea() {
   }
 
   const colX  = pts.map(p => toX(p.date));
-  // Интервал от предыдущего замера в днях (для заголовков)
-  const itvl  = pts.map((p, i) =>
-    i === 0 ? 'старт' : daysBetween(pts[i - 1].date, p.date) + ' дн.'
-  );
 
   // ── Строим HTML chart-card ───────────────────────────
   area.innerHTML = `
@@ -624,7 +599,6 @@ function renderChartArea() {
       <div class="date-strip">
         <div class="label" id="stripLbl"></div>
       </div>
-      <div class="col-headers" id="colHdr"></div>
       <div class="chart-wrap">
         <svg class="chart-svg" id="cSvg"
              viewBox="0 0 ${CW} ${CH}"
@@ -642,14 +616,6 @@ function renderChartArea() {
       : `${m.name}  ·  ${fmtD(first)} — ${fmtD(last)}  ·  ${pts.length} замеров`;
 
   // ── Column headers ───────────────────────────────────
-  const hdr = document.getElementById('colHdr');
-  hdr.style.gridTemplateColumns = `repeat(${pts.length}, 1fr)`;
-  hdr.innerHTML = pts.map((_, i) => `
-    <div class="cell">
-      <div class="interval">${itvl[i]}</div>
-      <div class="num">${i + 1}</div>
-    </div>`).join('');
-
   // ── SVG ─────────────────────────────────────────────
   const svg = document.getElementById('cSvg');
   const NS  = 'http://www.w3.org/2000/svg';
