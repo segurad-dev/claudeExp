@@ -162,8 +162,8 @@
   }
   .empty-state strong { color: #0f172a; display: block; margin-bottom: 6px; }
 
-  /* ── Note card ── */
-  .note-card {
+  /* ── Interval note editor ── */
+  .interval-note-editor {
     background: #fff;
     border: 2px solid #65a30d;
     border-radius: 10px;
@@ -172,32 +172,98 @@
     flex-direction: column;
     gap: 6px;
   }
-  .note-card > span {
+  .ine-header {
     font-size: 10px;
     font-weight: 700;
     color: #4d7c0f;
     text-transform: uppercase;
     letter-spacing: .4px;
   }
-  .note-card textarea {
-    border: none;
-    resize: none;
+  .interval-note-editor textarea {
+    border: 1.5px solid #cbd5e1;
+    border-radius: 6px;
+    resize: vertical;
+    min-height: 70px;
     outline: none;
     font-family: inherit;
     font-size: 13px;
     color: #1a2c2c;
-    line-height: 1.4;
-    min-height: 60px;
-    background: transparent;
+    padding: 6px 8px;
   }
+  .interval-note-editor textarea:focus { border-color: #65a30d; }
+  .ine-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .ine-actions button {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+  }
+  #ineSave   { background: #16a34a; color: #fff; }
+  #ineCancel { background: #e2e8f0; color: #334155; }
 
-  /* ── Bottom bar ── */
-  .bottom-bar {
+  /* ── Interval column overlays ── */
+  .interval-col {
+    position: absolute;
+    top: 0; height: 100%;
+    cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 10px;
-    position: relative;
+    justify-content: center;
+    z-index: 1;
+    transition: background .15s;
   }
+  .interval-col:hover { background: rgba(0,0,0,0.04); }
+  .ic-plus {
+    font-size: 20px;
+    line-height: 1;
+    color: #d1d5db;
+    transition: color .15s;
+  }
+  .interval-col:hover .ic-plus { color: #64748b; }
+  .interval-col.has-note .ic-plus { color: #16a34a; }
+
+  /* ── Add right button ── */
+  .add-right-btn {
+    position: absolute;
+    right: 0; top: 0;
+    height: 100%; width: 28px;
+    background: rgba(248,250,252,0.92);
+    border: none;
+    border-left: 1.5px dashed #cbd5e1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 9px;
+    font-weight: 700;
+    color: #94a3b8;
+    letter-spacing: .5px;
+    font-family: inherit;
+    transition: background .15s, color .15s;
+  }
+  .add-right-btn:hover {
+    background: rgba(22,163,74,0.1);
+    color: #16a34a;
+  }
+  .add-right-btn.has-trailing {
+    background: rgba(22,163,74,0.12);
+    color: #16a34a;
+    border-left-color: rgba(22,163,74,0.5);
+  }
+  .add-right-btn.has-trailing:hover {
+    background: rgba(22,163,74,0.22);
+  }
+
   .add-btn {
     width: 54px; height: 54px;
     border-radius: 50%;
@@ -215,22 +281,9 @@
   .add-btn:active { transform: scale(.97); }
   .add-btn svg { width: 28px; height: 28px; }
 
-  .input-field {
-    flex: 1;
-    height: 48px;
-    background: #fff;
-    border: 2px solid #0a0a0a;
-    border-radius: 10px;
-    padding: 0 14px;
-    font-size: 14px;
-    outline: none;
-    font-family: inherit;
-  }
-  .input-field:focus { border-color: #16a34a; }
-
   .menu {
     position: absolute;
-    bottom: 64px; left: 0;
+    bottom: calc(100% + 6px); right: 0;
     background: #fff;
     border: 1.5px solid #0a0a0a;
     border-radius: 10px;
@@ -261,10 +314,12 @@
   /* ── Toolbar ── */
   .toolbar {
     display: flex;
+    align-items: center;
     gap: 8px;
     padding-top: 2px;
+    position: relative;
   }
-  .toolbar button {
+  .toolbar > button:not(.add-btn) {
     flex: 1;
     padding: 6px 4px;
     font-size: 11px;
@@ -275,7 +330,7 @@
     font-family: inherit;
     color: #0f172a;
   }
-  .toolbar button:hover { background: rgba(255,255,255,.7); }
+  .toolbar > button:not(.add-btn):hover { background: rgba(255,255,255,.7); }
 
   /* ── Toast ── */
   .toast {
@@ -401,31 +456,27 @@
   <!-- Chart area: filled by renderChartArea() -->
   <div id="chartArea"></div>
 
-  <!-- Note card -->
-  <div class="note-card">
-    <span>Заметка в свободной форме</span>
-    <textarea id="noteEl" placeholder="Самочувствие, лекарства, диета, нагрузка, сон…"></textarea>
+  <!-- Interval note editor (hidden until + column clicked) -->
+  <div class="interval-note-editor" id="intervalNoteEditor" style="display:none">
+    <div class="ine-header" id="ineHeader">ЗАМЕТКА</div>
+    <textarea id="ineText" placeholder="Самочувствие, лекарства, диета…"></textarea>
+    <div class="ine-actions">
+      <button id="ineCancel">Отмена</button>
+      <button id="ineSave">Сохранить</button>
+    </div>
   </div>
 
-  <!-- Bottom bar -->
-  <div class="bottom-bar">
-    <div class="menu" id="menu">
-      <button id="menuManual">⌨️ Ввести вручную</button>
-    </div>
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button id="btnClear">Очистить</button>
+    <button id="btnExport">Экспорт</button>
+    <button id="btnImport">Импорт</button>
     <button class="add-btn" id="addBtn" title="Добавить замер">
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M9 2h6M10 2v13a2 2 0 0 0 4 0V2" stroke="#0a0a0a" stroke-width="1.8" stroke-linecap="round"/>
         <path d="M10 11h4v4a2 2 0 0 1-4 0v-4z" fill="#fb923c"/>
       </svg>
     </button>
-    <input class="input-field" id="quickInput" type="text" placeholder="Заметка (Enter — сохранить)">
-  </div>
-
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <button id="btnClear">🗑 Очистить</button>
-    <button id="btnExport">📤 Экспорт</button>
-    <button id="btnImport">📥 Импорт</button>
   </div>
 
 </div>
@@ -456,16 +507,18 @@ const MKEYS = Object.keys(METRICS);
 // ══════════════════════════════════════════════════════
 const SKEY           = 'healthtracker.data';
 const TOAST_DURATION = 2800;   // мс до автоскрытия toast
-const NOTE_DEBOUNCE  = 400;    // мс задержки автосохранения заметок
 const MAX_VALID_MULT = 20;     // порог нереалистичного значения (ref.max × N)
 const NOTE_TRUNC     = 60;     // макс символов заметки в tooltip
 
 function load() {
   try {
     const raw = localStorage.getItem(SKEY);
-    return raw ? JSON.parse(raw) : { version: 1, measurements: [] };
+    const d   = raw ? JSON.parse(raw) : { version: 1, measurements: [] };
+    d.intervalNotes = d.intervalNotes || {};
+    d.trailingNote  = d.trailingNote !== undefined ? d.trailingNote : null;
+    return d;
   } catch {
-    return { version: 1, measurements: [] };
+    return { version: 1, measurements: [], intervalNotes: {} };
   }
 }
 
@@ -524,7 +577,7 @@ metricSelect.addEventListener('change', () => setMetric(metricSelect.value));
 //  SVG chart — константы холста
 // ══════════════════════════════════════════════════════
 const CW = 340, CH = 220;           // viewBox размер
-const PL = 38,  PR = 10;            // отступы лево/право
+const PL = 38,  PR = 30;            // отступы лево/право (PR увеличен под кнопку ДОБАВИТЬ)
 const PT = 16,  PB = 10;            // отступы верх/низ
 const PW = CW - PL - PR;            // ширина области графика
 const PH = CH - PT - PB;            // высота области графика
@@ -717,6 +770,39 @@ function renderChartArea() {
       </div>`;
   }).join('');
 
+  // ── 7. Кнопка у правого края — trailing note ──────────────
+  const chartWrap   = area.querySelector('.chart-wrap');
+  const lastPt      = pts[pts.length - 1];
+  const hasTrailing = !!(getData().trailingNote?.text?.trim());
+
+  const addRightBtn = document.createElement('button');
+  addRightBtn.className = 'add-right-btn' + (hasTrailing ? ' has-trailing' : '');
+  addRightBtn.textContent = hasTrailing ? '✎ ЗАМЕТКА' : '+ ЗАМЕТКА';
+  addRightBtn.addEventListener('click', () => openTrailingNoteEditor(lastPt.date));
+  chartWrap.appendChild(addRightBtn);
+
+  // ── 8. Колонки-оверлеи между точками ──────────────────────
+  if (pts.length >= 2) {
+    const noteData = getData();
+    for (let i = 0; i < pts.length - 1; i++) {
+      const d1 = pts[i].date;
+      const d2 = pts[i + 1].date;
+      const hasNote = !!(noteData.intervalNotes && noteData.intervalNotes[intervalKey(d1, d2)]);
+
+      const leftPct  = colX[i]     / CW * 100;
+      const widthPct = (colX[i + 1] - colX[i]) / CW * 100;
+
+      const col = document.createElement('div');
+      col.className = 'interval-col' + (hasNote ? ' has-note' : '');
+      col.style.left  = leftPct + '%';
+      col.style.width = widthPct + '%';
+      col.dataset.d1  = d1;
+      col.dataset.d2  = d2;
+      col.innerHTML   = '<span class="ic-plus">+</span>';
+      chartWrap.appendChild(col);
+    }
+  }
+
 }
 
 // ══════════════════════════════════════════════════════
@@ -784,6 +870,25 @@ function fmtD(iso) {
        + `${d.getFullYear()}`;
 }
 
+function fmtShort(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+// ── Интервальные заметки ──────────────────────────────────
+function intervalKey(d1, d2) { return d1 + '_' + d2; }
+
+function getIntervalNote(d1, d2) {
+  return (getData().intervalNotes || {})[intervalKey(d1, d2)] || '';
+}
+
+function setIntervalNote(d1, d2, text) {
+  const data = getData();
+  data.intervalNotes = data.intervalNotes || {};
+  data.intervalNotes[intervalKey(d1, d2)] = text;
+  saveData(data);
+}
+
 // ══════════════════════════════════════════════════════
 //  Toast
 // ══════════════════════════════════════════════════════
@@ -832,7 +937,14 @@ function saveManualEntry() {
   if (val < 0 || val > ref.max * MAX_VALID_MULT) { toast('Значение выглядит нереалистичным — проверьте ввод', 'error'); return; }
 
   const data = getData();
+  const trailing = data.trailingNote;
   data.measurements.push({ id: uuid(), date, metric, value: val, unit, notes });
+  // Конвертируем хвостовую заметку в интервальную, если новый анализ закрывает её
+  if (trailing && trailing.text?.trim() && trailing.startDate <= date) {
+    data.intervalNotes = data.intervalNotes || {};
+    data.intervalNotes[intervalKey(trailing.startDate, date)] = trailing.text;
+    data.trailingNote = null;
+  }
   saveData(data);
 
   closeModal();
@@ -899,27 +1011,9 @@ function openManualModal() {
 }
 
 // ══════════════════════════════════════════════════════
-//  Кнопка-пробирка + меню
+//  Кнопка-пробирка
 // ══════════════════════════════════════════════════════
-const menu   = document.getElementById('menu');
-const addBtn = document.getElementById('addBtn');
-
-// Тоггл меню
-addBtn.addEventListener('click', e => {
-  e.stopPropagation();
-  menu.classList.toggle('open');
-});
-
-// Закрыть меню при клике вне его
-document.addEventListener('click', e => {
-  if (!menu.contains(e.target)) menu.classList.remove('open');
-});
-
-// Пункт «Ввести вручную»
-document.getElementById('menuManual').addEventListener('click', () => {
-  menu.classList.remove('open');
-  openManualModal();
-});
+document.getElementById('addBtn').addEventListener('click', openManualModal);
 
 // ══════════════════════════════════════════════════════
 //  Toolbar — Очистить / Экспорт / Импорт
@@ -930,7 +1024,7 @@ document.getElementById('btnClear').addEventListener('click', () => {
   const n = getData().measurements.length;
   if (n === 0) { toast('Нет данных для удаления', 'error'); return; }
   if (!confirm(`Удалить все ${n} измерений? Действие необратимо.`)) return;
-  saveData({ version: 1, measurements: [] });
+  saveData({ version: 1, measurements: [], intervalNotes: {}, trailingNote: null });
   renderChartArea();
   toast('Все данные удалены', 'success');
 });
@@ -1003,7 +1097,7 @@ document.getElementById('btnImport').addEventListener('click', () => {
       : `Загрузить ${clean.length} измерений из файла?`;
     if (!confirm(msg)) return;
 
-    saveData({ version: 1, measurements: clean });
+    saveData({ version: 1, measurements: clean, intervalNotes: imported.intervalNotes || {}, trailingNote: imported.trailingNote || null });
 
     // Переключаемся на первую метрику, для которой есть данные
     const firstKey = MKEYS.find(k => clean.some(e => e.metric === k));
@@ -1015,50 +1109,58 @@ document.getElementById('btnImport').addEventListener('click', () => {
 });
 
 // ══════════════════════════════════════════════════════
-//  Заметки
+//  Редактор интервальной заметки
 // ══════════════════════════════════════════════════════
-const NOTE_KEY = 'healthtracker.note';
+let _ineD1 = '', _ineD2 = '';
 
-const noteEl     = document.getElementById('noteEl');
-const quickInput = document.getElementById('quickInput');
+function openIntervalNoteEditor(d1, d2) {
+  _ineD1 = d1; _ineD2 = d2;
+  document.getElementById('ineHeader').textContent =
+    'ЗАМЕТКА: ' + fmtShort(d1) + ' — ' + fmtShort(d2);
+  document.getElementById('ineText').value = getIntervalNote(d1, d2);
+  document.getElementById('intervalNoteEditor').style.display = '';
+  document.getElementById('ineText').focus();
+}
 
-// Загружаем сохранённую заметку при старте
-noteEl.value = localStorage.getItem(NOTE_KEY) || '';
+function openTrailingNoteEditor(lastDate) {
+  _ineD1 = lastDate; _ineD2 = '';
+  document.getElementById('ineHeader').textContent =
+    'ЗАМЕТКА: ' + fmtShort(lastDate) + ' — ...';
+  document.getElementById('ineText').value = getData().trailingNote?.text || '';
+  document.getElementById('intervalNoteEditor').style.display = '';
+  document.getElementById('ineText').focus();
+}
 
-// Любое редактирование textarea — в localStorage с дебаунсом
-let noteTimer;
-noteEl.addEventListener('input', () => {
-  clearTimeout(noteTimer);
-  noteTimer = setTimeout(() => localStorage.setItem(NOTE_KEY, noteEl.value), NOTE_DEBOUNCE);
+document.getElementById('ineCancel').addEventListener('click', () => {
+  document.getElementById('intervalNoteEditor').style.display = 'none';
 });
 
-// Enter в поле ввода → добавить строку с «•» в заметку
-quickInput.addEventListener('keydown', e => {
-  if (e.key !== 'Enter') return;
-  const line = quickInput.value.trim();
-  if (!line) return;
-
-  // Добавляем к существующему тексту, сохраняем немедленно
-  // (явное действие — дебаунс не нужен, но сбрасываем таймер чтобы
-  // не затереть результат отложенной записью из noteEl input)
-  noteEl.value = noteEl.value
-    ? noteEl.value + '\n• ' + line
-    : '• ' + line;
-  clearTimeout(noteTimer);
-  localStorage.setItem(NOTE_KEY, noteEl.value);
-
-  quickInput.value = '';
-  toast('Добавлено в заметку', 'success');
+document.getElementById('ineSave').addEventListener('click', () => {
+  const text = document.getElementById('ineText').value;
+  if (_ineD2 === '') {
+    // Хвостовая заметка (trailing note)
+    const data = getData();
+    data.trailingNote = text.trim() ? { text, startDate: _ineD1 } : null;
+    saveData(data);
+  } else {
+    setIntervalNote(_ineD1, _ineD2, text);
+  }
+  document.getElementById('intervalNoteEditor').style.display = 'none';
+  renderChartArea();
+  toast('Заметка сохранена', 'success');
 });
 
 // ══════════════════════════════════════════════════════
 //  Делегированные обработчики (устанавливаются один раз)
 // ══════════════════════════════════════════════════════
 
-// Клик по date-chip → модалка дня
+// Клик по date-chip или interval-col
 document.getElementById('chartArea').addEventListener('click', e => {
   const chip = e.target.closest('.date-chip');
-  if (chip) openDayModal(chip.dataset.date);
+  if (chip) { openDayModal(chip.dataset.date); return; }
+
+  const col = e.target.closest('.interval-col');
+  if (col) openIntervalNoteEditor(col.dataset.d1, col.dataset.d2);
 });
 
 // Тултип при наведении на точку графика (делегирован на #chartArea)
